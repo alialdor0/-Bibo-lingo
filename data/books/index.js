@@ -9,7 +9,7 @@ const inPages = (q, [from, to]) => q.pageRef >= from && q.pageRef <= to;
 // اختبار صفحات باب واحد.
 export function chapterExam(gradeId, book, ch) {
   return {
-    id: `${gradeId}-${book.id}-${ch.id}`, title: `اختبار ${book.title}: ${ch.title}`, kind: 'pages', semester: ch.semester,
+    id: `${gradeId}-${book.id}-${ch.id}`, title: `اختبار ${book.title}: ${ch.title}`, kind: 'pages', semester: ch.semester, subject: book.title,
     questions: book.questions.filter((q) => inPages(q, ch.pages)),
   };
 }
@@ -18,7 +18,7 @@ export function chapterExam(gradeId, book, ch) {
 export function semesterExam(gradeId, book, semester) {
   const chs = book.chapters.filter((c) => c.semester === semester);
   return {
-    id: `${gradeId}-${book.id}-sem${semester}`, title: `اختبار ${book.title}: الفصل ${semester === 1 ? 'الأول' : 'الثاني'} الشامل`, kind: 'semester', semester,
+    id: `${gradeId}-${book.id}-sem${semester}`, title: `اختبار ${book.title}: الفصل ${semester === 1 ? 'الأول' : 'الثاني'} الشامل`, kind: 'semester', semester, subject: book.title,
     questions: book.questions.filter((q) => chs.some((c) => inPages(q, c.pages))),
   };
 }
