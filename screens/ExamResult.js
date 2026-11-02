@@ -16,6 +16,7 @@ export default function ExamResult({ result, answers, onRetry, onExit }) {
         <Txt style={{ textAlign: 'center' }}>من 100</Txt>
         <Txt size={20} weight="700" color={pass ? theme.primary : theme.danger} style={{ textAlign: 'center', marginTop: 6 }}>{pass ? 'ناجح' : 'راسب'}</Txt>
         <Txt color={theme.sub} style={{ textAlign: 'center', marginTop: 6 }}>{`إجابات صحيحة كاملة: ${full} من ${result.details.length}`}</Txt>
+        {result.gems > 0 ? <Txt color={theme.primary} weight="700" style={{ textAlign: 'center', marginTop: 6 }}>{`كسبت ${result.gems} جواهر`}</Txt> : null}
       </Card>
       <Txt size={20} weight="800" style={{ marginVertical: 10 }}>مراجعة الأخطاء</Txt>
       {wrong.length === 0 ? <Card><Txt>لا توجد أخطاء. أحسنت.</Txt></Card> : wrong.map(({ q }) => (

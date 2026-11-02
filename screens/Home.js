@@ -8,6 +8,7 @@ import Settings from './Settings';
 import Exams from './Exams';
 import ExamRun from './ExamRun';
 import Library from './Library';
+import Profile from './Profile';
 
 const TABS = [
   { id: 'home', label: 'الرئيسية' },
@@ -34,6 +35,7 @@ export default function Home({ onChangeGrade }) {
   else if (tab === 'settings') body = <Settings onChangeGrade={onChangeGrade} />;
   else if (tab === 'exams') body = <Exams onStart={setRun} />;
   else if (tab === 'library') body = <Library onStart={setRun} />;
+  else if (tab === 'profile') body = <Profile />;
   else if (tab === 'home') {
     body = (
       <ScrollView contentContainerStyle={{ padding: 20 }}>

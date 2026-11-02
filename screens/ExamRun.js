@@ -7,7 +7,7 @@ import { Btn, Row, Txt } from '../components/UI';
 import ExamResult from './ExamResult';
 
 export default function ExamRun({ exam, onExit }) {
-  const { theme, gradeId, progress, updateProgress } = useApp();
+  const { theme, gradeId, progress, updateProgress, addGems } = useApp();
   const [idx, setIdx] = useState(0);
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
@@ -29,12 +29,16 @@ export default function ExamRun({ exam, onExit }) {
     saved.current = true;
     const r = gradeExam(exam, answers);
     const old = (progress[gradeId] && progress[gradeId].results) || [];
+    // الجواهر: أول محاولة 2 + درجتك÷10، وفي الإعادة تُكسب فقط عند تحسّن الدرجة.
+    const prev = old.filter((x) => x.examId === exam.id).map((x) => x.percent);
+    const gems = prev.length ? Math.max(0, Math.floor((r.percent - Math.max(...prev)) / 10)) : 2 + Math.floor(r.percent / 10);
+    if (gems) addGems(gems);
     updateProgress(gradeId, { results: [...old, {
-      examId: exam.id, title: exam.title, kind: exam.kind, semester: exam.semester, date: new Date().toISOString(),
+      examId: exam.id, subject: exam.subject, gems, title: exam.title, kind: exam.kind, semester: exam.semester, date: new Date().toISOString(),
       score: Math.round(r.score * 10) / 10, total: r.total, percent: r.percent,
       wrong: r.details.filter((d) => d.fraction < 1).map((d) => d.q.id),
     }] });
-    setResult(r);
+    setResult({ ...r, gems });
   };
   const askFinish = () => {
     const left = qs.filter((x) => !isAnswered(answers[x.id])).length;
