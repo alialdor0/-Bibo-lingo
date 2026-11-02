@@ -5,6 +5,8 @@ import { useApp } from '../context/AppContext';
 import { findGrade } from '../data/stages';
 import { Card, Row, Txt } from '../components/UI';
 import Settings from './Settings';
+import Exams from './Exams';
+import ExamRun from './ExamRun';
 
 const TABS = [
   { id: 'home', label: 'الرئيسية' },
@@ -16,17 +18,19 @@ const TABS = [
 
 const SOON = {
   library: 'ستظهر هنا كتب صفك مقسمة حسب الفصل الأول والفصل الثاني.',
-  exams: 'ستجد هنا اختبارات الصفحات واختبار الفصل الكامل.',
+  exams: 'اختبارات الصفحات واختبار الفصل الكامل، مع الدرجة ومراجعة الأخطاء.',
   profile: 'ستظهر هنا نتائجك حسب الأشهر ونصف السنة وآخر السنة.',
 };
 
 export default function Home({ onChangeGrade }) {
   const { theme, user, gradeId } = useApp();
   const [tab, setTab] = useState('home');
+  const [run, setRun] = useState(null); // الاختبار الجاري
   const info = findGrade(gradeId);
 
   let body;
   if (tab === 'settings') body = <Settings onChangeGrade={onChangeGrade} />;
+  else if (tab === 'exams') body = run ? <ExamRun key={run.id} exam={run} onExit={() => setRun(null)} /> : <Exams onStart={setRun} />;
   else if (tab === 'home') {
     body = (
       <ScrollView contentContainerStyle={{ padding: 20 }}>
@@ -52,7 +56,7 @@ export default function Home({ onChangeGrade }) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
       <View style={{ flex: 1 }}>{body}</View>
-      <Row style={{ borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.card }}>
+      {run ? null : <Row style={{ borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.card }}>
         {TABS.map((t) => (
           <Pressable
             key={t.id} accessibilityRole="tab" accessibilityLabel={t.label} accessibilityState={{ selected: tab === t.id }}
@@ -60,7 +64,7 @@ export default function Home({ onChangeGrade }) {
             <Txt size={13} weight={tab === t.id ? '800' : '500'} color={tab === t.id ? theme.primary : theme.sub} style={{ textAlign: 'center' }}>{t.label}</Txt>
           </Pressable>
         ))}
-      </Row>
+      </Row>}
     </SafeAreaView>
   );
 }
