@@ -1,81 +1,44 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { getLevel, getPrefix, fullName } from '../data';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { loadJSON, saveJSON } from '../utils/storage';
+import { THEMES, FONT_SCALES } from '../theme';
 
-const AppContext = createContext(null);
+const KEY = 'school:state:v1';
+const DEFAULTS = {
+  user: null, // { name, school, section }
+  gradeId: null,
+  progress: {}, // تقدم كل صف منفصل: { [gradeId]: {...} }
+  settings: { darkMode: false, fontSize: 'M', sfx: true, haptics: true, notifications: true, offline: false },
+};
+const Ctx = createContext(null);
+export const useApp = () => useContext(Ctx);
 
 export function AppProvider({ children }) {
-  const [lang, setLang]   = useState('ar');
-  const [user, setUser]   = useState(null);
-  const [track, setTrack] = useState(null);
-  const [gems, setGems]   = useState(50);
-  const [stationery, setStationery] = useState({
-    pen:    { id: 'pen_basic', inkLeft: 100 },
-    eraser: { uses: 20 },
-    pages:  { left: 30 },
-  });
+  const [state, setState] = useState(DEFAULTS);
+  const [hydrated, setHydrated] = useState(false);
 
-  const addGems = useCallback((amount) => {
-    setGems(prev => prev + amount);
+  useEffect(() => {
+    (async () => {
+      const saved = await loadJSON(KEY, null);
+      if (saved) setState({ ...DEFAULTS, ...saved, settings: { ...DEFAULTS.settings, ...(saved.settings || {}) } });
+      setHydrated(true);
+    })();
   }, []);
+  useEffect(() => { if (hydrated) saveJSON(KEY, state); }, [state, hydrated]);
 
-  const useInk = useCallback(() => {
-    setStationery(prev => ({
-      ...prev,
-      pen: { ...prev.pen, inkLeft: Math.max(0, prev.pen.inkLeft - 1) },
-    }));
-  }, []);
+  const login = useCallback((user) => setState((s) => ({ ...s, user })), []);
+  const logout = useCallback(() => setState((s) => ({ ...DEFAULTS, settings: s.settings })), []);
+  const setGrade = useCallback((gradeId) => setState((s) => ({ ...s, gradeId })), []);
+  const updateSettings = useCallback((patch) => setState((s) => ({ ...s, settings: { ...s.settings, ...patch } })), []);
+  const updateProgress = useCallback((gradeId, patch) => setState((s) => ({ ...s, progress: { ...s.progress, [gradeId]: { ...(s.progress[gradeId] || {}), ...patch } } })), []);
 
-  const useEraser = useCallback(() => {
-    setStationery(prev => ({
-      ...prev,
-      eraser: { uses: Math.max(0, prev.eraser.uses - 1) },
-    }));
-  }, []);
+  const value = useMemo(() => {
+    const k = FONT_SCALES[state.settings.fontSize] || 1;
+    return {
+      ...state, hydrated, login, logout, setGrade, updateSettings, updateProgress,
+      theme: state.settings.darkMode ? THEMES.dark : THEMES.light,
+      scale: (n) => Math.round(n * k),
+    };
+  }, [state, hydrated, login, logout, setGrade, updateSettings, updateProgress]);
 
-  const usePage = useCallback(() => {
-    setStationery(prev => ({
-      ...prev,
-      pages: { left: Math.max(0, prev.pages.left - 1) },
-    }));
-  }, []);
-
-  const buyItem = useCallback((item) => {
-    if (gems < item.price) return false;
-    setGems(prev => prev - item.price);
-    setStationery(prev => {
-      if (item.type === 'pen')    return { ...prev, pen:    { id: item.id, inkLeft: item.ink } };
-      if (item.type === 'eraser') return { ...prev, eraser: { uses: item.uses } };
-      if (item.type === 'paper')  return { ...prev, pages:  { left: prev.pages.left + item.pages } };
-      return prev;
-    });
-    return true;
-  }, [gems]);
-
-  const claimGift = useCallback((reward) => {
-    if (reward.type === 'gems') {
-      addGems(reward.amount);
-    } else if (reward.type === 'pen') {
-      setStationery(prev => ({ ...prev, pen: { id: reward.item, inkLeft: 100 } }));
-    } else if (reward.type === 'eraser') {
-      setStationery(prev => ({ ...prev, eraser: { uses: prev.eraser.uses + 20 } }));
-    } else if (reward.type === 'paper') {
-      setStationery(prev => ({ ...prev, pages: { left: prev.pages.left + 20 } }));
-    }
-  }, [addGems]);
-
-  const value = {
-    lang, setLang,
-    user, setUser,
-    track, setTrack,
-    gems, addGems,
-    stationery, useInk, useEraser, usePage, buyItem, claimGift,
-  };
-
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
-
-export const useApp = () => {
-  const ctx = useContext(AppContext);
-  if (!ctx) throw new Error('useApp must be used inside AppProvider');
-  return ctx;
-};
