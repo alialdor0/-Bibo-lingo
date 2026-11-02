@@ -1,1 +1,25 @@
-{ "expo": { "name": "المدرسة", "slug": "e-school", "version": "0.1.0", "orientation": "portrait", "userInterfaceStyle": "automatic" } }
+{
+  "expo": {
+    "name": "المدرسة",
+    "slug": "e-school",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/ec278e8a-e6d9-4815-9725-63869ec30872"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.eschool.app"
+    },
+    "android": {
+      "package": "com.eschool.app"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ec278e8a-e6d9-4815-9725-63869ec30872"
+      }
+    }
+  }
+}
