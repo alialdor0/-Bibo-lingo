@@ -7,6 +7,7 @@ import { Card, Row, Txt } from '../components/UI';
 import Settings from './Settings';
 import Exams from './Exams';
 import ExamRun from './ExamRun';
+import Library from './Library';
 
 const TABS = [
   { id: 'home', label: 'الرئيسية' },
@@ -29,8 +30,10 @@ export default function Home({ onChangeGrade }) {
   const info = findGrade(gradeId);
 
   let body;
-  if (tab === 'settings') body = <Settings onChangeGrade={onChangeGrade} />;
-  else if (tab === 'exams') body = run ? <ExamRun key={run.id} exam={run} onExit={() => setRun(null)} /> : <Exams onStart={setRun} />;
+  if (run) body = <ExamRun key={run.id} exam={run} onExit={() => setRun(null)} />;
+  else if (tab === 'settings') body = <Settings onChangeGrade={onChangeGrade} />;
+  else if (tab === 'exams') body = <Exams onStart={setRun} />;
+  else if (tab === 'library') body = <Library onStart={setRun} />;
   else if (tab === 'home') {
     body = (
       <ScrollView contentContainerStyle={{ padding: 20 }}>
