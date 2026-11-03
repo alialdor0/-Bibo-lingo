@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { useApp } from '../context/AppContext';
+import { tap } from '../utils/feedback';
 
 export function Txt({ size = 16, weight = '400', color, style, children, ...p }) {
   const { theme, scale } = useApp();
@@ -24,7 +25,7 @@ export function Btn({ title, onPress, kind = 'primary', disabled }) {
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={title} accessibilityState={{ disabled: !!disabled }}
-      disabled={disabled} onPress={onPress}
+      disabled={disabled} onPress={() => { tap(); if (onPress) onPress(); }}
       style={{ backgroundColor: primary ? theme.primary : 'transparent', borderColor: theme.primary, borderWidth: 1.5, borderRadius: 12, paddingVertical: 14, alignItems: 'center', opacity: disabled ? 0.45 : 1, marginTop: 8 }}>
       <Txt weight="700" color={primary ? theme.onPrimary : theme.primary} style={{ textAlign: 'center' }}>{title}</Txt>
     </Pressable>
@@ -35,7 +36,7 @@ export function Chip({ label, active, onPress }) {
   const { theme } = useApp();
   return (
     <Pressable
-      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: !!active }} onPress={onPress}
+      accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: !!active }} onPress={() => { tap(); if (onPress) onPress(); }}
       style={{ minWidth: 52, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1.5, borderColor: active ? theme.primary : theme.border, backgroundColor: active ? theme.primary : theme.card, marginLeft: 8, marginBottom: 8, alignItems: 'center' }}>
       <Txt weight="700" color={active ? theme.onPrimary : theme.text} style={{ textAlign: 'center' }}>{label}</Txt>
     </Pressable>
