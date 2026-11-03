@@ -19,6 +19,7 @@ export default function ExamResult({ result, answers, onRetry, onExit }) {
         {result.gems > 0 ? <Txt color={theme.primary} weight="700" style={{ textAlign: 'center', marginTop: 6 }}>{`كسبت ${result.gems} جواهر`}</Txt> : null}
       </Card>
       <Txt size={20} weight="800" style={{ marginVertical: 10 }}>مراجعة الأخطاء</Txt>
+      {wrong.length ? <Txt color={theme.sub} style={{ marginBottom: 8 }}>أُضيفت الأسئلة التي أخطأت فيها إلى مفكرتي.</Txt> : null}
       {wrong.length === 0 ? <Card><Txt>لا توجد أخطاء. أحسنت.</Txt></Card> : wrong.map(({ q }) => (
         <Card key={q.id}>
           <Txt weight="700">{qTitle(q)}</Txt>

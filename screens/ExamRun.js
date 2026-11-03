@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, BackHandler, Pressable, ScrollView, View } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { gradeExam, isAnswered } from '../utils/exam';
+import { correctText, gradeExam, isAnswered, qTitle } from '../utils/exam';
+import { mergeNotes } from '../utils/notes';
 import Question from '../components/Questions';
 import { Btn, Row, Txt } from '../components/UI';
 import ExamResult from './ExamResult';
@@ -33,7 +34,10 @@ export default function ExamRun({ exam, onExit }) {
     const prev = old.filter((x) => x.examId === exam.id).map((x) => x.percent);
     const gems = prev.length ? Math.max(0, Math.floor((r.percent - Math.max(...prev)) / 10)) : 2 + Math.floor(r.percent / 10);
     if (gems) addGems(gems);
-    updateProgress(gradeId, { results: [...old, {
+    // الأسئلة الخاطئة تُضاف تلقائياً إلى مفكرتي.
+    const oldNotes = (progress[gradeId] && progress[gradeId].notes) || [];
+    const wrongNotes = r.details.filter((d) => d.fraction < 1).map((d) => ({ kind: 'wrong', key: `wrong:${d.q.id}`, title: qTitle(d.q), body: correctText(d.q), subject: exam.subject }));
+    updateProgress(gradeId, { notes: mergeNotes(oldNotes, wrongNotes), results: [...old, {
       examId: exam.id, subject: exam.subject, gems, title: exam.title, kind: exam.kind, semester: exam.semester, date: new Date().toISOString(),
       score: Math.round(r.score * 10) / 10, total: r.total, percent: r.percent,
       wrong: r.details.filter((d) => d.fraction < 1).map((d) => d.q.id),

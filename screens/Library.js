@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { BackHandler, Pressable, ScrollView } from 'react-native';
+import { Alert, BackHandler, Pressable, ScrollView, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { chapterExam, getBooks, isSampleContent, semesterExam } from '../data/books';
+import { mergeNotes } from '../utils/notes';
 import { Btn, Card, Chip, Row, Txt } from '../components/UI';
 
 export default function Library({ onStart }) {
-  const { theme, gradeId } = useApp();
+  const { theme, gradeId, progress, updateProgress } = useApp();
   const books = getBooks(gradeId);
   const [bookId, setBookId] = useState(null);
   const [chapterId, setChapterId] = useState(null);
@@ -22,6 +23,14 @@ export default function Library({ onStart }) {
     return () => sub.remove();
   }, [bookId, chapterId]);
 
+  const addDef = (b, c, d) => {
+    const old = (progress[gradeId] && progress[gradeId].notes) || [];
+    const key = `def:${b.id}:${c.id}:${d.term}`;
+    if (old.some((n) => n.key === key)) return Alert.alert('مفكرتي', 'هذا التعريف موجود في مفكرتي.');
+    updateProgress(gradeId, { notes: mergeNotes(old, [{ kind: 'definition', key, title: d.term, body: d.def, subject: b.title }]) });
+    Alert.alert('مفكرتي', 'أُضيف التعريف إلى مفكرتي.');
+  };
+
   // شاشة الملخص
   if (book && ch) {
     const s = ch.summary; const exam = chapterExam(gradeId, book, ch);
@@ -34,7 +43,12 @@ export default function Library({ onStart }) {
         {s.definitions && s.definitions.length ? (
           <Card>
             <Txt weight="800" size={18} color={theme.primary} style={{ marginBottom: 6 }}>تعريفات مهمة</Txt>
-            {s.definitions.map((d) => <Txt key={d.term} style={{ marginBottom: 6 }}><Txt weight="700">{`${d.term}: `}</Txt>{d.def}</Txt>)}
+            {s.definitions.map((d) => (
+              <View key={d.term} style={{ marginBottom: 10 }}>
+                <Txt><Txt weight="700">{`${d.term}: `}</Txt>{d.def}</Txt>
+                <Row style={{ marginTop: 6 }}><Chip label="أضف إلى مفكرتي" onPress={() => addDef(book, ch, d)} /></Row>
+              </View>
+            ))}
           </Card>
         ) : null}
         {exam.questions.length ? <Btn title={`اختبر نفسك (الصفحات ${ch.pages[0]} إلى ${ch.pages[1]})`} onPress={() => onStart(exam)} /> : null}
