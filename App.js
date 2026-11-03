@@ -3,6 +3,7 @@ import { BackHandler, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { AppProvider, useApp } from './context/AppContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import Login from './screens/Login';
 import Pick from './screens/Pick';
 import Home from './screens/Home';
@@ -12,6 +13,8 @@ function Root() {
   const [stack, setStack] = useState([]); // سجل الرجوع للشاشات الفرعية
   const push = (name, params = {}) => setStack((s) => [...s, { name, ...params }]);
   const pop = () => setStack((s) => s.slice(0, -1));
+
+  useEffect(() => { if (!user) setStack([]); }, [user]); // عند تبديل الطالب
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -45,9 +48,11 @@ function Root() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <AppProvider>
-        <Root />
-      </AppProvider>
+      <ErrorBoundary>
+        <AppProvider>
+          <Root />
+        </AppProvider>
+      </ErrorBoundary>
     </SafeAreaProvider>
   );
 }
