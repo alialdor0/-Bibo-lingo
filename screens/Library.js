@@ -3,6 +3,8 @@ import { Alert, BackHandler, Pressable, ScrollView, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { chapterExam, getBooks, isSampleContent, semesterExam } from '../data/books';
 import { mergeNotes } from '../utils/notes';
+import { getPdfBooks } from '../data/pdfbooks';
+import Reader from './Reader';
 import { Btn, Card, Chip, Row, Txt } from '../components/UI';
 
 export default function Library({ onStart }) {
@@ -11,17 +13,65 @@ export default function Library({ onStart }) {
   const [bookId, setBookId] = useState(null);
   const [chapterId, setChapterId] = useState(null);
   const [sem, setSem] = useState(1);
+  const [section, setSection] = useState(null); // null | books | summaries
+  const [reading, setReading] = useState(null); // كتاب PDF مفتوح
   const book = books.find((b) => b.id === bookId);
   const ch = book && book.chapters.find((c) => c.id === chapterId);
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (reading) return false; // القارئ يعالج زر الرجوع بنفسه
       if (chapterId) { setChapterId(null); return true; }
       if (bookId) { setBookId(null); return true; }
+      if (section) { setSection(null); return true; }
       return false;
     });
     return () => sub.remove();
-  }, [bookId, chapterId]);
+  }, [bookId, chapterId, section, reading]);
+
+  const pdfBooks = getPdfBooks(gradeId);
+  const hl = (progress[gradeId] && progress[gradeId].highlights) || {};
+
+  // الشاشة الأولى: الكتب أو الملخصات
+  if (!section) {
+    return (
+      <ScrollView contentContainerStyle={{ padding: 20 }}>
+        <Txt size={26} weight="800" style={{ marginBottom: 12 }}>المكتبة</Txt>
+        <Pressable accessibilityRole="button" accessibilityLabel="الكتب" onPress={() => setSection('books')}>
+          <Card><Txt size={34}>📖</Txt><Txt size={22} weight="800">الكتب</Txt><Txt color={theme.sub} style={{ marginTop: 4 }}>{`كتب صفك بصفحاتها، مع التظليل والبحث. (${pdfBooks.length})`}</Txt></Card>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="الملخصات" onPress={() => setSection('summaries')}>
+          <Card><Txt size={34}>📝</Txt><Txt size={22} weight="800">الملخصات</Txt><Txt color={theme.sub} style={{ marginTop: 4 }}>ملخصات الأبواب مع تعريفات مهمة واختبار لكل باب.</Txt></Card>
+        </Pressable>
+      </ScrollView>
+    );
+  }
+
+  // الكتب
+  if (section === 'books') {
+    const open = pdfBooks.find((b) => b.id === reading);
+    if (open) return <Reader book={open} onClose={() => setReading(null)} />;
+    return (
+      <ScrollView contentContainerStyle={{ padding: 20 }}>
+        <Txt size={26} weight="800" style={{ marginBottom: 12 }}>الكتب</Txt>
+        {pdfBooks.some((b) => b.sample) ? <Card><Txt color={theme.sub}>هذا كتاب تجريبي لعرض الشكل. نضع كتب صفك الحقيقية لاحقاً.</Txt></Card> : null}
+        {pdfBooks.length === 0 ? <Card><Txt color={theme.sub}>لا توجد كتب لهذا الصف بعد.</Txt></Card> : null}
+        {pdfBooks.map((b) => {
+          const n = Object.keys(hl[b.id] || {}).length;
+          return (
+            <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={`كتاب ${b.title}`} onPress={() => setReading(b.id)}>
+              <Card>
+                <Txt size={20} weight="700">{b.title}</Txt>
+                <Txt color={theme.sub} style={{ marginTop: 4 }}>{`${b.subject ? `${b.subject}، ` : ''}${b.count - b.offset} صفحة`}</Txt>
+                {n ? <Txt color={theme.primary} style={{ marginTop: 4 }}>{`تظليلات في ${n} صفحات`}</Txt> : null}
+              </Card>
+            </Pressable>
+          );
+        })}
+        <Btn title="رجوع" kind="outline" onPress={() => setSection(null)} />
+      </ScrollView>
+    );
+  }
 
   const addDef = (b, c, d) => {
     const old = (progress[gradeId] && progress[gradeId].notes) || [];
@@ -79,13 +129,14 @@ export default function Library({ onStart }) {
   // قائمة الكتب
   return (
     <ScrollView contentContainerStyle={{ padding: 20 }}>
-      <Txt size={26} weight="800" style={{ marginBottom: 12 }}>المكتبة</Txt>
+      <Txt size={26} weight="800" style={{ marginBottom: 12 }}>الملخصات</Txt>
       {isSampleContent(gradeId) ? <Card><Txt color={theme.sub}>الكتب الحالية نماذج تجريبية لعرض الشكل. نضع ملخصات كتب صفك لاحقاً.</Txt></Card> : null}
       {books.map((b) => (
         <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={`كتاب ${b.title}`} onPress={() => { setBookId(b.id); setSem(1); }}>
           <Card><Txt size={20} weight="700">{b.title}</Txt><Txt color={theme.sub} style={{ marginTop: 4 }}>{`${b.chapters.length} أبواب`}</Txt></Card>
         </Pressable>
       ))}
+      <Btn title="رجوع" kind="outline" onPress={() => setSection(null)} />
     </ScrollView>
   );
 }
