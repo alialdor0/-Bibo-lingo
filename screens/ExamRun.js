@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, BackHandler, Pressable, ScrollView, View } from 'react-native';
 import { useApp } from '../context/AppContext';
-import { correctText, gradeExam, isAnswered, qTitle } from '../utils/exam';
+import { PASS_MARK, correctText, fmtTime, gradeExam, isAnswered, qTitle } from '../utils/exam';
 import { mergeNotes } from '../utils/notes';
+import { fail, success } from '../utils/feedback';
 import Question from '../components/Questions';
 import { Btn, Row, Txt } from '../components/UI';
 import ExamResult from './ExamResult';
@@ -13,6 +14,11 @@ export default function ExamRun({ exam, onExit }) {
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const saved = useRef(false);
+  const timed = !!exam.minutes;
+  const endAt = useRef(Date.now() + (exam.minutes || 0) * 60000);
+  const startedAt = useRef(Date.now());
+  const [left, setLeft] = useState(timed ? exam.minutes * 60 : null);
+  const latest = useRef({});
   const qs = exam.questions;
   const q = qs[idx];
 
@@ -28,7 +34,9 @@ export default function ExamRun({ exam, onExit }) {
   const finish = () => {
     if (saved.current) return;
     saved.current = true;
+    const seconds = Math.min(Math.round((Date.now() - startedAt.current) / 1000), timed ? exam.minutes * 60 : Infinity);
     const r = gradeExam(exam, answers);
+    if (r.percent >= PASS_MARK) success(); else fail();
     const old = (progress[gradeId] && progress[gradeId].results) || [];
     // الجواهر: أول محاولة 2 + درجتك÷10، وفي الإعادة تُكسب فقط عند تحسّن الدرجة.
     const prev = old.filter((x) => x.examId === exam.id).map((x) => x.percent);
@@ -38,12 +46,27 @@ export default function ExamRun({ exam, onExit }) {
     const oldNotes = (progress[gradeId] && progress[gradeId].notes) || [];
     const wrongNotes = r.details.filter((d) => d.fraction < 1).map((d) => ({ kind: 'wrong', key: `wrong:${d.q.id}`, title: qTitle(d.q), body: correctText(d.q), subject: exam.subject }));
     updateProgress(gradeId, { notes: mergeNotes(oldNotes, wrongNotes), results: [...old, {
-      examId: exam.id, subject: exam.subject, gems, title: exam.title, kind: exam.kind, semester: exam.semester, date: new Date().toISOString(),
+      examId: exam.id, subject: exam.subject, gems, seconds, title: exam.title, kind: exam.kind, semester: exam.semester, date: new Date().toISOString(),
       score: Math.round(r.score * 10) / 10, total: r.total, percent: r.percent,
       wrong: r.details.filter((d) => d.fraction < 1).map((d) => d.q.id),
     }] });
-    setResult({ ...r, gems });
+    setResult({ ...r, gems, seconds });
   };
+  latest.current = { finish, result };
+  // المؤقت: يعتمد على الساعة فلا يتوقف عند إخفاء التطبيق، ويسلّم الإجابات تلقائياً عند انتهاء الوقت.
+  useEffect(() => {
+    if (!timed || result) return undefined;
+    const id = setInterval(() => {
+      const l = Math.max(0, Math.ceil((endAt.current - Date.now()) / 1000));
+      setLeft(l);
+      if (l === 0) {
+        clearInterval(id);
+        if (!latest.current.result) { Alert.alert('انتهى الوقت', 'سُلّمت إجاباتك تلقائياً.'); latest.current.finish(); }
+      }
+    }, 1000);
+    return () => clearInterval(id);
+  }, [result]);
+
   const askFinish = () => {
     const left = qs.filter((x) => !isAnswered(answers[x.id])).length;
     if (!left) return finish();
@@ -53,8 +76,8 @@ export default function ExamRun({ exam, onExit }) {
   };
 
   if (result) {
-    return <ExamResult result={result} answers={answers} onExit={onExit}
-      onRetry={() => { saved.current = false; setAnswers({}); setIdx(0); setResult(null); }} />;
+    return <ExamResult exam={exam} result={result} answers={answers} onExit={onExit}
+      onRetry={() => { saved.current = false; endAt.current = Date.now() + (exam.minutes || 0) * 60000; startedAt.current = Date.now(); setLeft(timed ? exam.minutes * 60 : null); setAnswers({}); setIdx(0); setResult(null); }} />;
   }
   const last = idx === qs.length - 1;
   return (
@@ -62,6 +85,7 @@ export default function ExamRun({ exam, onExit }) {
       <View style={{ padding: 20, paddingBottom: 8 }}>
         <Row style={{ justifyContent: 'space-between' }}>
           <Txt weight="700">{`سؤال ${idx + 1} من ${qs.length}`}</Txt>
+          {timed ? <Txt weight="800" color={left <= 60 ? theme.danger : theme.primary}>{`الوقت: ${fmtTime(left)}`}</Txt> : null}
           <Pressable accessibilityRole="button" accessibilityLabel="خروج من الاختبار" onPress={confirmExit}><Txt color={theme.danger} weight="700">خروج</Txt></Pressable>
         </Row>
         <View style={{ height: 6, backgroundColor: theme.border, borderRadius: 3, marginTop: 10 }}>

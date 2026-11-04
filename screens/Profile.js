@@ -3,9 +3,9 @@ import { Alert, BackHandler, Pressable, ScrollView, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { findGrade } from '../data/stages';
 import { equippedValue } from '../data/store';
-import { buildPeriods, reportHtml, subjectOf, summarize } from '../utils/results';
+import { bestByExam, buildPeriods, reportHtml, subjectOf, summarize } from '../utils/results';
 import { Btn, Card, Row, Txt } from '../components/UI';
-import { PASS_MARK } from '../utils/exam';
+import { PASS_MARK, fmtTime } from '../utils/exam';
 import Store from './Store';
 import Settings from './Settings';
 
@@ -17,6 +17,7 @@ export default function Profile({ onChangeGrade }) {
   const results = (progress[gradeId] && progress[gradeId].results) || [];
   const periods = buildPeriods(results);
   const sum = summarize(results);
+  const ministerial = bestByExam(results.filter((r) => r.kind === 'ministerial'));
   const sticker = equippedValue(inv, 'sticker', '');
 
   useEffect(() => {
@@ -76,6 +77,20 @@ export default function Profile({ onChangeGrade }) {
           {p.items.map((r) => <Txt key={r.examId} color={theme.sub} style={{ marginTop: 4 }}>{`${subjectOf(r)}: ${r.title.replace(/^اختبار /, '')} (${r.percent})`}</Txt>)}
         </Card>
       ))}
+      {ministerial.length ? (
+        <View>
+          <Txt size={20} weight="800" style={{ marginVertical: 8 }}>الامتحانات الوزارية</Txt>
+          {ministerial.map((r) => (
+            <Card key={r.examId}>
+              <Row style={{ justifyContent: 'space-between' }}>
+                <Txt weight="800" size={17}>{subjectOf(r)}</Txt>
+                <Txt weight="800" color={r.percent >= PASS_MARK ? theme.primary : theme.danger}>{`${r.percent} من 100`}</Txt>
+              </Row>
+              <Txt color={theme.sub} style={{ marginTop: 4 }}>{`أفضل نتيجة${r.seconds ? `، الزمن ${fmtTime(r.seconds)}` : ''}`}</Txt>
+            </Card>
+          ))}
+        </View>
+      ) : null}
       <Btn title="تصدير كشف الدرجات (PDF)" disabled={results.length === 0} onPress={exportPdf} />
       <Txt size={13} color={theme.sub} style={{ marginTop: 8 }}>تُحتسب أفضل محاولة لكل اختبار.</Txt>
     </ScrollView>
