@@ -41,14 +41,14 @@ export function buildPeriods(results) {
 }
 
 export function summarize(results) {
-  const best = bestByExam(results);
+  const best = bestByExam(results.filter((r) => r.kind !== 'ministerial'));
   return { exams: best.length, avg: avg(best), passed: best.filter((r) => r.percent >= 50).length };
 }
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export function reportHtml({ user, gradeName, results }) {
-  const best = bestByExam(results);
+  const best = bestByExam(results.filter((r) => r.kind !== 'ministerial'));
   const periods = buildPeriods(results);
   const subjects = [...new Set(best.map(subjectOf))];
   const cell = (sub, p) => { const it = p.items.filter((r) => subjectOf(r) === sub); return it.length ? avg(it) : '—'; };

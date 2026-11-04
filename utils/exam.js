@@ -69,3 +69,18 @@ export function shuffledIndices(n, seedStr) {
   if (n > 1 && a.every((v, i) => v === i)) a.push(a.shift()); // لا نعرض الترتيب الصحيح كما هو
   return a;
 }
+
+export const fmtTime = (sec) => `${Math.floor(sec / 60)}:${String(Math.max(0, Math.round(sec) % 60)).padStart(2, '0')}`;
+
+// تقرير الأبواب بعد الامتحان الوزاري: نسبة الصحة لكل باب، من الأضعف إلى الأقوى.
+export function chapterReport(details) {
+  const m = {};
+  details.forEach(({ q, fraction }) => {
+    if (!q.chapterTitle) return;
+    const pts = q.points || 1;
+    m[q.chapterTitle] = m[q.chapterTitle] || { title: q.chapterTitle, earned: 0, total: 0 };
+    m[q.chapterTitle].earned += pts * fraction; m[q.chapterTitle].total += pts;
+  });
+  return Object.values(m).map((c) => ({ ...c, percent: Math.round((c.earned / c.total) * 100) })).sort((a, b) => a.percent - b.percent);
+}
+export const WEAK_BELOW = 60;
