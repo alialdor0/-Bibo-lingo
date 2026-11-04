@@ -4,6 +4,7 @@ export const setFeedbackSettings = (s) => { cfg = { sfx: !!s.sfx, haptics: !!s.h
 
 const SOUNDS = { ok: () => require('../assets/sfx/success.wav'), bad: () => require('../assets/sfx/fail.wav') };
 const players = {};
+let modeReady = false;
 
 function buzz(kind) {
   if (!cfg.haptics) return;
@@ -13,16 +14,33 @@ function buzz(kind) {
     else H.notificationAsync(kind === 'ok' ? H.NotificationFeedbackType.Success : H.NotificationFeedbackType.Error);
   } catch (e) {}
 }
+
+// على الآيفون لا يُسمع الصوت إن كان مفتاح الصامت مفعّلاً، إلا بهذا الإعداد.
+async function ensureMode(audio) {
+  if (modeReady) return;
+  modeReady = true;
+  try { await audio.setAudioModeAsync({ playsInSilentMode: true }); } catch (e) {}
+}
+
+async function playOrThrow(name) {
+  const audio = require('expo-audio');
+  await ensureMode(audio);
+  if (!players[name]) players[name] = audio.createAudioPlayer(SOUNDS[name]());
+  const p = players[name];
+  p.seekTo(0);
+  p.play();
+}
 function play(name) {
   if (!cfg.sfx) return;
-  try {
-    const { createAudioPlayer } = require('expo-audio');
-    if (!players[name]) players[name] = createAudioPlayer(SOUNDS[name]());
-    const p = players[name];
-    p.seekTo(0); p.play();
-  } catch (e) {}
+  playOrThrow(name).catch(() => {});
 }
 
 export const tap = () => buzz('light');
 export const success = () => { buzz('ok'); play('ok'); };
 export const fail = () => { buzz('bad'); play('bad'); };
+
+// لزر «جرّب الصوت» في الإعدادات: يرجع نص الخطأ إن فشل، أو null عند النجاح.
+export async function testSound() {
+  if (!cfg.sfx) return 'المؤثرات الصوتية مغلقة. فعّلها أولاً.';
+  try { await playOrThrow('ok'); return null; } catch (e) { return String((e && e.message) || e); }
+}
