@@ -27,8 +27,6 @@ jobs:
             books-v5-
       - name: Convert books from PDF
         id: convert
-        if: steps.books-cache.outputs.cache-hit != 'true'
-        continue-on-error: true
         env:
           PYTHONUTF8: "1"
         run: |
