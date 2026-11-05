@@ -1,5 +1,3 @@
-خطأ المسافة البادئة (Indentation) في ملفات YAML. السطر الرابع يقع تحت on: بشكل خاطئ بينما يجب أن يكون في بداية الملف أو داخل مستوى صحيح.
-قم بتعديل القسم الأول من الملف ليكون هكذا:
 name: EAS Update
 
 on:
@@ -7,4 +5,58 @@ on:
     branches:
       - main
 
-تأكد من أن السطر الأول name: EAS Update يبدأ من أقصى اليسار بدون أي مسافات بادئة، وأن on: يبدأ أيضاً من أقصى اليسار.
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Remove old sample book
+        run: rm -rf data/pdfbooks/sample-sci
+      - name: Restore converted books
+        id: books-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/pdfbooks
+          key: books-v5-${{ hashFiles('books/**', 'tools/build_books.py') }}
+          restore-keys: |
+            books-v5-
+      - name: Convert books from PDF
+        id: convert
+        if: steps.books-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        env:
+          PYTHONUTF8: "1"
+        run: |
+          echo "== الملفات الموجودة في books:"
+          find books -type f 2>/dev/null | head -60
+          if [ ! -d books ]; then echo "::error::المجلد books غير موجود"; exit 1; fi
+          if [ ! -f tools/build_books.py ]; then echo "::error::الملف tools/build_books.py غير موجود"; exit 1; fi
+          sudo apt-get update -y
+          sudo apt-get install -y poppler-utils python3-pil
+          python3 tools/build_books.py
+          n=$(ls -d data/pdfbooks/*/ 2>/dev/null | wc -l)
+          echo "عدد الكتب المحوّلة: $n"
+          if [ "$n" -eq 0 ]; then echo "::error::لم يُحوَّل أي كتاب"; exit 1; fi
+      - name: Save converted books
+        if: steps.convert.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: data/pdfbooks
+          key: books-v5-${{ hashFiles('books/**', 'tools/build_books.py') }}
+      - name: Books summary
+        if: always()
+        run: |
+          echo "ملفات PDF: $(find books -name '*.pdf' 2>/dev/null | wc -l)"
+          echo "المجلدات المحوّلة:"
+          ls data/pdfbooks 2>/dev/null
+      - run: npm install
+      - run: npx expo install --fix
+      - run: eas update --channel preview --message "Auto update from GitHub Actions" --non-interactive
+
