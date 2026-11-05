@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Image, PanResponder, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { searchBook, toNumber } from '../utils/bookSearch';
+import { pageSlot } from '../utils/sheet';
 import { Btn, Card, Chip, Field, Row, Txt } from '../components/UI';
 
 const COLORS = { y: ['أصفر', 'rgba(255,214,0,0.42)'], g: ['أخضر', 'rgba(76,175,80,0.42)'], p: ['وردي', 'rgba(244,114,182,0.45)'] };
@@ -11,6 +12,8 @@ export default function Reader({ book, onClose }) {
   const { width } = useWindowDimensions();
   const W = Math.round(width - 24);
   const H = Math.round(W * (book.size[1] / book.size[0]));
+  const cols = (book.sheet && book.sheet.cols) || 1;
+  const rows = (book.sheet && book.sheet.rows) || 1;
   const [page, setPage] = useState(1);
   const [mode, setMode] = useState('view'); // view | mark | erase
   const [color, setColor] = useState('y');
@@ -59,6 +62,7 @@ export default function Reader({ book, onClose }) {
     return () => sub.remove();
   }, [panel, onClose]);
 
+  const slot = pageSlot(page, cols, rows);
   const go = (p) => { setPage(Math.max(1, Math.min(book.count, p))); setPanel(null); };
   const printed = (p) => p - book.offset;
   const label = (p) => (printed(p) >= 1 ? `صفحة ${printed(p)}` : `غلاف أو مقدمة (${p})`);
@@ -135,8 +139,9 @@ export default function Reader({ book, onClose }) {
         {mode === 'erase' ? <Txt size={13} color={theme.sub}>اضغط على أي تظليل لحذفه.</Txt> : null}
       </View>
       <ScrollView scrollEnabled={mode !== 'mark'} maximumZoomScale={3} minimumZoomScale={1} contentContainerStyle={{ alignItems: 'center', paddingVertical: 8 }}>
-        <View style={{ width: W, height: H, backgroundColor: '#FFFFFF' }}>
-          <Image source={book.images[page - 1]} style={{ width: W, height: H }} resizeMode="stretch" accessibilityLabel={`صفحة الكتاب ${label(page)}`} />
+        <View style={{ width: W, height: H, backgroundColor: '#FFFFFF', overflow: 'hidden' }}>
+          <Image source={book.images[slot.sheet]} resizeMode="stretch" accessibilityLabel={`صفحة الكتاب ${label(page)}`}
+            style={{ position: 'absolute', width: W * cols, height: H * rows, left: -slot.col * W, top: -slot.row * H }} />
           {marks.map((m, i) => (
             <Pressable key={i} disabled={mode !== 'erase'} pointerEvents={mode === 'mark' ? 'none' : 'auto'}
               accessibilityRole="button" accessibilityLabel="حذف التظليل"
