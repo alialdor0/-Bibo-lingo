@@ -22,25 +22,34 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: data/pdfbooks
-          key: books-v3-${{ hashFiles('books/**', 'tools/build_books.py') }}
+          key: books-v4-${{ hashFiles('books/**', 'tools/build_books.py') }}
           restore-keys: |
-            books-v3-
+            books-v4-
       - name: Convert books from PDF
         id: convert
         if: steps.books-cache.outputs.cache-hit != 'true'
         continue-on-error: true
+        env:
+          PYTHONUTF8: "1"
         run: |
-          if [ -d books ]; then
-            sudo apt-get update -y
-            sudo apt-get install -y poppler-utils python3-pil
-            python3 tools/build_books.py
-          fi
+          if [ ! -d books ]; then echo "::warning::المجلد books غير موجود في جذر المستودع"; exit 0; fi
+          if [ ! -f tools/build_books.py ]; then echo "::error::الملف tools/build_books.py غير موجود"; exit 1; fi
+          sudo apt-get update -y
+          sudo apt-get install -y poppler-utils python3-pil
+          python3 tools/build_books.py
       - name: Save converted books
         if: steps.convert.outcome == 'success'
         uses: actions/cache/save@v4
         with:
           path: data/pdfbooks
-          key: books-v3-${{ hashFiles('books/**', 'tools/build_books.py') }}
+          key: books-v4-${{ hashFiles('books/**', 'tools/build_books.py') }}
+      - name: Books summary
+        if: always()
+        run: |
+          pdfs=$(find books -name '*.pdf' 2>/dev/null | wc -l)
+          done_books=$(ls -d data/pdfbooks/*/ 2>/dev/null | wc -l)
+          echo "::notice::ملفات PDF في المستودع: $pdfs | كتب محوّلة جاهزة: $done_books | الكتب المطلوبة في المجلد: $(ls books 2>/dev/null | tr '\n' ' ')"
+          if [ "$pdfs" -gt 0 ] && [ "$done_books" -eq 0 ]; then echo "::warning::يوجد ملفات PDF لكن لم يُحوَّل أي كتاب"; fi
       - run: npm install
       - run: npx expo install --fix
       - run: eas update --channel preview --message "Auto update from GitHub Actions" --non-interactive
