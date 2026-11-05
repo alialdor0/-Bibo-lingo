@@ -55,4 +55,3 @@ jobs:
       - run: npm install
       - run: npx expo install --fix
       - run: eas update --channel preview --message "Auto update from GitHub Actions" --non-interactive
-
