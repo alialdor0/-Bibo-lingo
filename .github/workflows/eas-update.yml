@@ -17,8 +17,6 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Remove old sample book
-        run: rm -rf data/pdfbooks/sample-sci
       - name: Restore converted books
         id: books-cache
         uses: actions/cache/restore@v4
