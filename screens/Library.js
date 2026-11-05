@@ -3,7 +3,8 @@ import { Alert, BackHandler, Pressable, ScrollView, View } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { chapterExam, getBooks, isSampleContent, semesterExam } from '../data/books';
 import { mergeNotes } from '../utils/notes';
-import { getPdfBooks } from '../data/pdfbooks';
+import { PDF_BOOKS, getPdfBooks } from '../data/pdfbooks';
+import { findGrade } from '../data/stages';
 import Reader from './Reader';
 import { Btn, Card, Chip, Row, Txt } from '../components/UI';
 
@@ -30,6 +31,10 @@ export default function Library({ onStart }) {
   }, [bookId, chapterId, section, reading]);
 
   const pdfBooks = getPdfBooks(gradeId);
+  const gradeInfo = findGrade(gradeId);
+  const byGrade = {};
+  PDF_BOOKS.forEach((b) => (Array.isArray(b.grades) ? b.grades : []).forEach((g) => { byGrade[g] = (byGrade[g] || 0) + 1; }));
+  const summary = Object.keys(byGrade).map((g) => { const i = findGrade(g); return `${i ? i.grade.name : g}: ${byGrade[g]}`; }).join('، ');
   const hl = (progress[gradeId] && progress[gradeId].highlights) || {};
 
   // الشاشة الأولى: الكتب أو الملخصات
@@ -54,6 +59,10 @@ export default function Library({ onStart }) {
     return (
       <ScrollView contentContainerStyle={{ padding: 20 }}>
         <Txt size={26} weight="800" style={{ marginBottom: 12 }}>الكتب</Txt>
+        <Card>
+          <Txt weight="700">{`صفك الحالي: ${gradeInfo ? gradeInfo.grade.name : ''}`}</Txt>
+          <Txt color={theme.sub} style={{ marginTop: 4 }}>{`الكتب الموجودة في التطبيق حسب الصف: ${summary || 'لا توجد كتب بعد'}`}</Txt>
+        </Card>
         {pdfBooks.some((b) => b.sample) ? <Card><Txt color={theme.sub}>هذا كتاب تجريبي لعرض الشكل. نضع كتب صفك الحقيقية لاحقاً.</Txt></Card> : null}
         {pdfBooks.length === 0 ? <Card><Txt color={theme.sub}>لا توجد كتب لهذا الصف بعد.</Txt></Card> : null}
         {pdfBooks.map((b) => {
