@@ -43,7 +43,7 @@ jobs:
           echo "عدد الكتب المحوّلة: $n"
           if [ "$n" -eq 0 ]; then echo "::error::لم يُحوَّل أي كتاب"; exit 1; fi
       - name: Save converted books
-        if: steps.convert.outcome == 'success'
+        if: always()
         uses: actions/cache/save@v4
         with:
           path: data/pdfbooks
