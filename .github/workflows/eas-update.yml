@@ -17,6 +17,23 @@ jobs:
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
+      - name: Restore converted books
+        id: books-cache
+        uses: actions/cache@v4
+        with:
+          path: data/pdfbooks
+          key: books-v2-${{ hashFiles('books/**', 'tools/build_books.py') }}
+          restore-keys: |
+            books-v2-
+      - name: Convert books from PDF
+        if: steps.books-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          if [ -d books ]; then
+            sudo apt-get update -y
+            sudo apt-get install -y poppler-utils python3-pil
+            python3 tools/build_books.py
+          fi
       - run: npm install
       - run: npx expo install --fix
       - run: eas update --channel preview --message "Auto update from GitHub Actions" --non-interactive
