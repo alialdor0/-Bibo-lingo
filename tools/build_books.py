@@ -6,13 +6,14 @@
 import argparse, glob, hashlib, json, os, re, shutil, subprocess, sys, tempfile, unicodedata
 from collections import Counter
 from PIL import Image
+import pytesseract
 
 ap = argparse.ArgumentParser()
 ap.add_argument('--books', default='books'); ap.add_argument('--out', default='data/pdfbooks')
 ap.add_argument('--width', type=int, default=720); ap.add_argument('--quality', type=int, default=62)
 ap.add_argument('--cols', type=int, default=2); ap.add_argument('--rows', type=int, default=3)
 a = ap.parse_args()
-VERSION = 2  # يتغير عند تغيير طريقة التحويل ليُعاد تحويل الكتب
+VERSION = 3  # تم رفع الإصدار لتفعيل التعرف على اللغتين العربية والإنجليزية
 
 def sha1(path):
     h = hashlib.sha1()
@@ -44,11 +45,21 @@ def convert(pdf, out, meta_base, side):
                 im.thumbnail((W, H)); bg = Image.new('RGB', (W, H), 'white'); bg.paste(im, ((W - im.width) // 2, 0)); im = bg
             sheet.paste(im, ((k % a.cols) * W, (k // a.cols) * H))
         sheet.save(os.path.join(out, f's{s + 1}.jpg'), 'JPEG', quality=a.quality, optimize=True)
-    shutil.rmtree(tmp)
+    
     text = {}
-    for i in range(1, n + 1):
+    for i, img_path in enumerate(files, start=1):
         r = subprocess.run(['pdftotext', '-f', str(i), '-l', str(i), pdf, '-'], capture_output=True, text=True)
-        text[str(i)] = clean(r.stdout)
+        extracted = clean(r.stdout)
+        
+        if not extracted:
+            try:
+                ocr_text = pytesseract.image_to_string(Image.open(img_path), lang='ara+eng')
+                extracted = clean(ocr_text)
+            except Exception:
+                extracted = ""
+        text[str(i)] = extracted
+
+    shutil.rmtree(tmp)
     meta = dict(meta_base, count=n, offset=int(side.get('offset', 0)), size=[W, H], sheet={'cols': a.cols, 'rows': a.rows},
                 sample=False, toc=side.get('toc', []), text=text)
     json.dump(meta, open(os.path.join(out, 'book.json'), 'w', encoding='utf-8'), ensure_ascii=False)
@@ -99,3 +110,4 @@ lines += ['', "export const getPdfBooks = (gradeId) => PDF_BOOKS.filter((b) => b
 open(os.path.join(a.out, 'index.js'), 'w', encoding='utf-8').write('\n'.join(lines))
 print(f'المجموع: {len(items)} كتاب، فشل {failed}')
 sys.exit(1 if failed else 0)
+
