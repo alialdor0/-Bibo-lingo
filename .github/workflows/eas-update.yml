@@ -1,6 +1,4 @@
-مشكلة الخطأ تظهر بسبب محاولة تثبيت حزمة python3-pytesseract عبر apt وهي غير موجودة بهذا الاسم في مستودعات أوبونتو، بينما مكتبة بايثون pytesseract يتم تثبيتها عن طريق pip أو أنها غير مطلوبة أصلاً إذا استدعينا أمر tesseract مباشرة عبر سطر الأوامر أو مكتبة بايثون مناسبة.
-لتصحيح ملف الـ Workflow وتجنب هذا الخطأ، قم بتعديل خطوة التثبيت في ملف الـ Workflow لتكون هكذا:
-      - name: Convert books from PDF
+name: Convert books from PDF
         id: convert
         env:
           PYTHONUTF8: "1"
