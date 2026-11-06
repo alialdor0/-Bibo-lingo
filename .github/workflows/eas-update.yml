@@ -35,7 +35,7 @@ jobs:
           if [ ! -d books ]; then echo "::error::المجلد books غير موجود"; exit 1; fi
           if [ ! -f tools/build_books.py ]; then echo "::error::الملف tools/build_books.py غير موجود"; exit 1; fi
           sudo apt-get update -y
-          sudo apt-get install -y poppler-utils python3-pil
+          sudo apt-get install -y poppler-utils python3-pil tesseract-ocr tesseract-ocr-ara tesseract-ocr-eng python3-pytesseract
           python3 tools/build_books.py
           n=$(ls -d data/pdfbooks/*/ 2>/dev/null | wc -l)
           echo "عدد الكتب المحوّلة: $n"
@@ -55,3 +55,4 @@ jobs:
       - run: npm install
       - run: npx expo install --fix
       - run: eas update --channel preview --message "Auto update from GitHub Actions" --non-interactive
+
