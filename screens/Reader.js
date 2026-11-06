@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Image, PanResponder, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, BackHandler, Image, PanResponder, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useApp } from '../context/AppContext';
 import { searchBook, toNumber } from '../utils/bookSearch';
 import { pageSlot } from '../utils/sheet';
@@ -8,7 +8,7 @@ import { Btn, Card, Chip, Field, Row, Txt } from '../components/UI';
 const COLORS = { y: ['أصفر', 'rgba(255,214,0,0.42)'], g: ['أخضر', 'rgba(76,175,80,0.42)'], p: ['وردي', 'rgba(244,114,182,0.45)'] };
 
 export default function Reader({ book, onClose }) {
-  const { theme, gradeId, progress, updateProgress } = useApp();
+  const { theme, gradeId, progress, updateProgress, scale } = useApp();
   const { width } = useWindowDimensions();
   const W = Math.round(width - 24);
   const H = Math.round(W * (book.size[1] / book.size[0]));
@@ -23,6 +23,12 @@ export default function Reader({ book, onClose }) {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [drag, setDrag] = useState(null);
+  const [textMode, setTextMode] = useState(false); // عرض نص الصفحة لقارئ الشاشة
+  useEffect(() => {
+    // إن كان قارئ الشاشة يعمل، يُفتح نص الصفحة تلقائياً
+    AccessibilityInfo.isScreenReaderEnabled().then((on) => { if (on) setTextMode(true); }).catch(() => {});
+  }, []);
+  const pageTxt = (book.text && book.text[String(page)]) || '';
 
   const allMarks = (progress[gradeId] && progress[gradeId].highlights && progress[gradeId].highlights[book.id]) || {};
   const marks = allMarks[page] || [];
@@ -126,21 +132,35 @@ export default function Reader({ book, onClose }) {
       </Row>
       <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
         <Row style={{ flexWrap: 'wrap' }}>
-          <Chip label="تصفح" active={mode === 'view'} onPress={() => setMode('view')} />
-          <Chip label="تظليل" active={mode === 'mark'} onPress={() => setMode('mark')} />
-          <Chip label="ممحاة" active={mode === 'erase'} onPress={() => setMode('erase')} />
+          <Chip label={textMode ? 'عرض الصورة' : 'نص الصفحة'} active={textMode} onPress={() => setTextMode(!textMode)} />
+          {textMode ? null : <Chip label="تصفح" active={mode === 'view'} onPress={() => setMode('view')} />}
+          {textMode ? null : <Chip label="تظليل" active={mode === 'mark'} onPress={() => setMode('mark')} />}
+          {textMode ? null : <Chip label="ممحاة" active={mode === 'erase'} onPress={() => setMode('erase')} />}
           <Chip label="بحث" onPress={() => setPanel('search')} />
           <Chip label="المحتويات" onPress={() => setPanel('toc')} />
           <Chip label="تظليلاتي" onPress={() => setPanel('marks')} />
         </Row>
-        {mode === 'mark' ? (
+        {!textMode && mode === 'mark' ? (
           <Row style={{ flexWrap: 'wrap' }}>{Object.keys(COLORS).map((k) => <Chip key={k} label={COLORS[k][0]} active={color === k} onPress={() => setColor(k)} />)}</Row>
         ) : null}
-        {mode === 'erase' ? <Txt size={13} color={theme.sub}>اضغط على أي تظليل لحذفه.</Txt> : null}
+        {!textMode && mode === 'erase' ? <Txt size={13} color={theme.sub}>اضغط على أي تظليل لحذفه.</Txt> : null}
       </View>
+      {textMode ? (
+        <ScrollView contentContainerStyle={{ padding: 16 }}>
+          <Txt weight="800" size={18} accessibilityRole="header" style={{ marginBottom: 8 }}>{label(page)}</Txt>
+          {pageTxt.trim().length > 20 ? (
+            <View>
+              {Array.isArray(book.ocr) && book.ocr.includes(page) ? <Txt size={14} color={theme.sub} accessibilityLanguage="ar" style={{ marginBottom: 8 }}>هذا النص استُخرج آلياً من صورة الصفحة، وقد يحتوي أخطاء.</Txt> : null}
+              <Txt selectable accessibilityLanguage="ar" size={19} style={{ lineHeight: Math.round(scale(19) * 1.75) }}>{pageTxt}</Txt>
+            </View>
+          ) : (
+            <Card><Txt accessibilityLanguage="ar">لا يتوفر نص لهذه الصفحة، فهي صورة أو رسم. اضغط عرض الصورة لرؤيتها.</Txt></Card>
+          )}
+        </ScrollView>
+      ) : (
       <ScrollView scrollEnabled={mode !== 'mark'} maximumZoomScale={3} minimumZoomScale={1} contentContainerStyle={{ alignItems: 'center', paddingVertical: 8 }}>
         <View style={{ width: W, height: H, backgroundColor: '#FFFFFF', overflow: 'hidden' }}>
-          <Image source={book.images[slot.sheet]} resizeMode="stretch" accessibilityLabel={`صفحة الكتاب ${label(page)}`}
+          <Image source={book.images[slot.sheet]} resizeMode="stretch" accessibilityLabel={`صورة ${label(page)}. لقراءة النص اضغط نص الصفحة.`}
             style={{ position: 'absolute', width: W * cols, height: H * rows, left: -slot.col * W, top: -slot.row * H }} />
           {marks.map((m, i) => (
             <Pressable key={i} disabled={mode !== 'erase'} pointerEvents={mode === 'mark' ? 'none' : 'auto'}
@@ -152,6 +172,7 @@ export default function Reader({ book, onClose }) {
           {mode === 'mark' ? <View {...pan.panHandlers} style={{ position: 'absolute', left: 0, top: 0, width: W, height: H }} /> : null}
         </View>
       </ScrollView>
+      )}
       <Row style={{ padding: 12 }}>
         <View style={{ flex: 1, marginHorizontal: 4 }}><Btn title="التالي" disabled={page >= book.count} onPress={() => go(page + 1)} /></View>
         <View style={{ flex: 2, marginHorizontal: 4 }}><Txt weight="700" style={{ textAlign: 'center' }}>{`${label(page)} من ${book.count - book.offset}`}</Txt></View>
