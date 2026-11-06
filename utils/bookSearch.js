@@ -36,7 +36,7 @@ export function searchBook(book, query, { from, to, limit = 60 } = {}) {
     const at = e ? e.flat.indexOf(q) : -1;
     if (at < 0) continue;
     const o = e.pos[at]; const t = book.text[String(p)];
-    out.push({ page: p, snippet: (o > 40 ? '…' : '') + t.slice(Math.max(0, o - 40), o + q.length + 70) + '…' });
+    out.push({ page: p, snippet: ((o > 40 ? '…' : '') + t.slice(Math.max(0, o - 40), o + q.length + 70) + '…').replace(/\s+/g, ' ') });
   }
   return out;
 }
