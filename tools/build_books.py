@@ -14,7 +14,7 @@ ap.add_argument('--width', type=int, default=720); ap.add_argument('--quality', 
 ap.add_argument('--cols', type=int, default=2); ap.add_argument('--rows', type=int, default=3)
 a = ap.parse_args()
 OCR_LANG = os.environ.get('OCR_LANG', 'ara+eng')
-VERSION = 4  # يتغير عند تغيير طريقة التحويل ليُعاد تحويل الكتب
+VERSION = 5  # يتغير عند تغيير طريقة التحويل ليُعاد تحويل الكتب
 
 def sha1(path):
     h = hashlib.sha1()
@@ -33,21 +33,27 @@ def extract_text(pdf, n):
     def fallback(i):
         r = subprocess.run(['pdftotext', '-f', str(i), '-l', str(i), pdf, '-'], capture_output=True, text=True)
         return clean(r.stdout)
-    text = {}
+    text = {}; blocks = {}
     try:
         from pdfminer.high_level import extract_pages
         from pdfminer.layout import LAParams
-        from arabic_text import page_text
+        from arabic_text import page_blocks, text_to_blocks
         lp = LAParams(char_margin=2.0, line_margin=0.5, boxes_flow=None)
         for i, layout in enumerate(extract_pages(pdf, laparams=lp), 1):
-            try: t = page_text(layout)
-            except Exception: t = ''
-            text[str(i)] = t if t.strip() else fallback(i)
-        for i in range(len(text) + 1, n + 1): text[str(i)] = fallback(i)
+            try: b = page_blocks(layout)
+            except Exception: b = []
+            t = '\n'.join(x for _, x in b)
+            if t.strip(): text[str(i)] = t; blocks[str(i)] = b
+            else: text[str(i)] = fallback(i); blocks[str(i)] = text_to_blocks(text[str(i)])
+        for i in range(len(text) + 1, n + 1): text[str(i)] = fallback(i); blocks[str(i)] = text_to_blocks(text[str(i)])
     except Exception as e:
         print('تعذر pdfminer، سيُستخدم pdftotext:', e, file=sys.stderr)
         text = {str(i): fallback(i) for i in range(1, n + 1)}
-    return text
+        try:
+            from arabic_text import text_to_blocks
+            blocks = {k: text_to_blocks(v) for k, v in text.items()}
+        except Exception: blocks = {}
+    return text, blocks
 
 def ocr_missing(pdf, text, ink):
     """الصفحات التي فيها صورة بلا نص (مثل الصفحات الممسوحة) تُقرأ بالتعرف الضوئي إن توفر tesseract. يرجع أرقامها."""
@@ -94,10 +100,14 @@ def convert(pdf, out, meta_base, side):
         g = Image.open(f).convert('L').resize((72, 100)); px = list(g.getdata())
         ink.append(sum(1 for v in px if v < 200) / len(px))
     shutil.rmtree(tmp)
-    text = extract_text(pdf, n)
+    text, blocks = extract_text(pdf, n)
     ocr_pages = ocr_missing(pdf, text, ink)
+    try:
+        from arabic_text import text_to_blocks
+        for pg in ocr_pages: blocks[str(pg)] = text_to_blocks(text[str(pg)])
+    except Exception: pass
     meta = dict(meta_base, count=n, offset=int(side.get('offset', 0)), size=[W, H], sheet={'cols': a.cols, 'rows': a.rows},
-                sample=False, toc=side.get('toc', []), ocr=ocr_pages, text=text)
+                sample=False, toc=side.get('toc', []), ocr=ocr_pages, text=text, blocks=blocks)
     json.dump(meta, open(os.path.join(out, 'book.json'), 'w', encoding='utf-8'), ensure_ascii=False)
     imgs = ', '.join(f"require('./s{s + 1}.jpg')" for s in range(sheets))
     open(os.path.join(out, 'index.js'), 'w', encoding='utf-8').write(
