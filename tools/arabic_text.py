@@ -29,12 +29,13 @@ def _rotated(g):
     m = g.matrix
     return abs(m[1]) > 0.15 * abs(m[0]) or abs(m[2]) > 0.15 * abs(m[3])
 
-def page_text(layout, gap_ratio=0.18):
+def page_blocks(layout, gap_ratio=0.18):
+    """كتل الصفحة بترتيب القراءة: [(نوع, نص)] حيث النوع h عنوان، p فقرة، l بند مرقّم، n ملاحظة، d نص داخل رسم."""
     gl = _dedupe([g for g in _glyphs(layout) if g.get_text() not in ('\n', '\r')])
     rot = {id(g) for g in gl if _rotated(g)}
-    main = _flow([g for g in gl if id(g) not in rot], gap_ratio)
+    blocks = _flow_blocks([g for g in gl if id(g) not in rot], gap_ratio)
     # النص المائل (داخل الرسوم): يُجمع بحسب مربعات pdfminer حتى لا يختلط بغيره
-    blocks = []
+    drawing = []
     for box in layout:
         if not isinstance(box, LTTextBox): continue
         lines = []
@@ -44,9 +45,86 @@ def page_text(layout, gap_ratio=0.18):
             if g:
                 t = _finish(_line_text(g, gap_ratio))
                 if t.strip(): lines.append(t)
-        if lines: blocks.append(' '.join(lines))
-    if blocks: main = (main + '\n\n' if main else '') + 'نص داخل الرسم:\n' + '\n'.join(blocks)
-    return _post(main)
+        if lines: drawing.append(' '.join(lines))
+    if drawing:
+        blocks.append(('n', 'نص داخل الرسم:'))
+        blocks += [('d', t) for t in drawing]
+    out = []
+    for t, s in blocks:
+        s = _post(s).strip()
+        if not s: continue
+        if s.startswith('[آي') and t in ('p', 'l'): t = 'n'
+        if out and s == out[-1][1] and s.startswith('['): continue
+        out.append((t, s))
+    return out
+
+def page_text(layout, gap_ratio=0.18):
+    return '\n'.join(s for _, s in page_blocks(layout, gap_ratio))
+
+def text_to_blocks(text):
+    """كتل مبسّطة لنص جاهز (التعرف الضوئي أو الاحتياطي): الفقرات مفصولة بسطر فارغ."""
+    paras = re.split(r'\n\s*\n', text.strip()) if '\n' in text else [text]
+    return [('p', re.sub(r'\s+', ' ', p).strip()) for p in paras if p.strip()]
+
+NUMBERED = re.compile(r'^\s*[\(\[]?([0-9\u0660-\u0669]{1,2}|[\u0621-\u064A])\s*[\.\-\)\]\u0640:]')
+PAGENUM = re.compile(r'^[0-9\u0660-\u0669]{1,4}$')
+
+def _median(v):
+    v = sorted(v); return v[len(v) // 2] if v else 0
+
+def _flow_blocks(gl, gap_ratio=0.18):
+    if not gl: return []
+    gl = sorted(gl, key=lambda g: -((g.y0 + g.y1) / 2))
+    rows = []
+    for g in gl:
+        cy = (g.y0 + g.y1) / 2; h = max(g.size, 1)
+        for r in rows:
+            if abs(r['cy'] - cy) <= 0.55 * r['h']:
+                r['g'].append(g); r['cy'] = sum((x.y0 + x.y1) / 2 for x in r['g']) / len(r['g']); break
+        else: rows.append({'cy': cy, 'h': h, 'g': [g]})
+    rows.sort(key=lambda r: -r['cy'])
+    lines = []
+    for r in rows:
+        base = [g for g in r['g'] if not _is_mark(g.get_text())] or r['g']
+        txt = _finish(_line_text(r['g'], gap_ratio))
+        if not txt.strip(): continue
+        names = [str(getattr(g, 'fontname', '')).lower() for g in base]
+        bold = sum(1 for n in names if 'bold' in n or 'black' in n or 'heavy' in n) / max(len(names), 1)
+        lines.append({'t': txt, 'x0': min(g.x0 for g in base), 'x1': max(g.x1 for g in base), 'cy': r['cy'],
+                      'size': _median([round(g.size * 2) / 2 for g in base]), 'bold': bold, 'n': len(txt)})
+    # أرقام الصفحات المنفردة تُحذف (يعرضها القارئ في رأس الصفحة)
+    lines = [l for l in lines if not PAGENUM.match(l['t'])]
+    if not lines: return []
+    cnt = {}
+    for l in lines: cnt[l['size']] = cnt.get(l['size'], 0) + l['n']
+    body = max(cnt, key=cnt.get)
+    wide = [l for l in lines if l['n'] >= 25] or lines
+    right = sorted(l['x1'] for l in wide)[int(len(wide) * 0.8) - 1 if len(wide) > 1 else 0]
+    left = sorted(l['x0'] for l in wide)[int(len(wide) * 0.2)]
+    col = max(right - left, 1)
+    pitches = [lines[i]['cy'] - lines[i + 1]['cy'] for i in range(len(lines) - 1) if 0 < lines[i]['cy'] - lines[i + 1]['cy'] < 3 * body]
+    pitch = _median(pitches) or 1.4 * body
+    def kind(l):
+        if l['t'] == QURAN_NOTE: return 'n'
+        if l['size'] >= 1.15 * body: return 'h'
+        if l['bold'] > 0.85 and (l['x1'] - l['x0']) <= 0.92 * col and l['n'] <= 90: return 'h'
+        if NUMBERED.match(l['t']): return 'l'
+        return 'p'
+    blocks = []; prev = None
+    for l in lines:
+        k = kind(l)
+        new = prev is None
+        if prev is not None:
+            gap = prev['cy'] - l['cy']
+            if k != blocks[-1][0] or k in ('l', 'n'): new = True
+            elif gap > 1.6 * pitch: new = True
+            elif k == 'h': new = gap > 1.25 * max(l['size'], prev['size']) * 1.4
+            elif prev['x0'] > left + 0.18 * col: new = True                 # السطر السابق انتهى مبكراً: انتهت الفقرة
+            elif l['x1'] < right - 1.6 * body and prev['x0'] <= left + 0.08 * col: new = True   # سطر أول مُزاح
+        if new: blocks.append([k, l['t']])
+        else: blocks[-1][1] += ' ' + l['t']
+        prev = l
+    return [(k, t) for k, t in blocks]
 
 def _flow(gl, gap_ratio=0.18):
     if not gl: return ''
@@ -73,6 +151,13 @@ def _flow(gl, gap_ratio=0.18):
         if prev is not None and (prev['cy'] - ln['cy']) > 2.1 * max(prev['h'], ln['h']): out.append('')
         out.append(txt); prev = ln
     return collapse_notes('\n'.join(out))
+
+def _fix_ltr(w):
+    # في السياق العربي تظهر علامة الترقيم يسار الرقم (مثل «-1») وترتيبها المنطقي بعده: «1-»
+    m = re.match(r'^([^\w\s]+)(\d+)$', w)
+    if m and m.group(1) not in ('(', ')', '[', ']'): return m.group(2) + m.group(1)
+    if len(w) >= 3 and w[0] == ')' and w[-1] == '(': return '(' + w[1:-1] + ')'
+    return w
 
 def _line_text(glyphs, gap_ratio):
     base = [g for g in glyphs if not _is_mark(g.get_text())]
@@ -103,7 +188,7 @@ def _line_text(glyphs, gap_ratio):
     for w in words:
         parts = wtxt(w); joined = ''.join(parts)
         if AR.search(joined): items.append(('R', ''.join(reversed(parts))))   # عربي: يُعكس ترتيب الحروف المرئي فقط
-        else: items.append(('L', joined))
+        else: items.append(('L', _fix_ltr(joined)))
     # وحدات: الكلمات اللاتينية/الأرقام المتتالية تبقى بترتيبها
     units = []
     for k, t in items:
