@@ -37,6 +37,8 @@ jobs:
         run: |
           echo "== الملفات الموجودة في books:"
           find books -type f 2>/dev/null | head -60
+          echo "== الملفات الموجودة في tools:"
+          ls tools 2>/dev/null
           if [ ! -d books ]; then echo "::error::المجلد books غير موجود"; exit 1; fi
           if [ ! -f tools/build_books.py ]; then echo "::error::الملف tools/build_books.py غير موجود"; exit 1; fi
           if [ ! -f tools/arabic_text.py ]; then echo "::error::الملف tools/arabic_text.py غير موجود"; exit 1; fi
@@ -54,6 +56,20 @@ jobs:
         with:
           path: data/pdfbooks
           key: books-v7-${{ hashFiles('books/**', 'tools/**') }}
+      - name: Ensure book registry is valid
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os
+          root = 'data/pdfbooks'
+          os.makedirs(root, exist_ok=True)
+          ids = sorted(d for d in os.listdir(root) if os.path.isfile(os.path.join(root, d, 'book.json')) and os.path.isfile(os.path.join(root, d, 'index.js')))
+          L = ['export const PDF_BOOKS = [];', 'let b;']
+          for i in ids: L.append("try { b = require('./%s'); if (b && b.default) PDF_BOOKS.push(b.default); } catch (e) {}" % i)
+          L += ['', "export const getPdfBooks = (gradeId) => PDF_BOOKS.filter((b) => b.grades === 'all' || b.grades.includes(gradeId));", '']
+          open(root + '/index.js', 'w', encoding='utf-8').write('\n'.join(L))
+          print('الكتب في السجل:', ids)
+          PY
       - name: Books summary
         if: always()
         run: |
@@ -64,7 +80,7 @@ jobs:
       - run: npx expo install --fix
       - run: eas update --channel preview --message "Auto update from GitHub Actions" --non-interactive
       - name: Report book conversion failure
-        if: steps.convert.outcome == 'failure'
+        if: always() && steps.convert.outcome == 'failure'
         run: |
-          echo "::error::فشل تحويل الكتب. التحديث نُشر بدونها. افتح الخطوة Convert books from PDF لمعرفة السبب."
+          echo "::error::فشل تحويل الكتب. افتح الخطوة Convert books from PDF لمعرفة السبب."
           exit 1
