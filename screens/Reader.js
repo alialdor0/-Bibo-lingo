@@ -29,6 +29,11 @@ export default function Reader({ book, onClose }) {
     AccessibilityInfo.isScreenReaderEnabled().then((on) => { if (on) setTextMode(true); }).catch(() => {});
   }, []);
   const pageTxt = (book.text && book.text[String(page)]) || '';
+  const [fontStep, setFontStep] = useState(0); // حجم خط القراءة
+  // كتل الصفحة: عناوين وفقرات (إن لم تتوفر تُقسَّم النص بالأسطر)
+  const pageBlocks = (book.blocks && book.blocks[String(page)]) || pageTxt.split('\n').filter((x) => x.trim()).map((x) => ['p', x]);
+  // عنوان القسم الحالي من فهرس الكتاب
+  const sectionTitle = ((book.toc || []).filter((x) => x.page <= page).pop() || {}).title;
 
   const allMarks = (progress[gradeId] && progress[gradeId].highlights && progress[gradeId].highlights[book.id]) || {};
   const marks = allMarks[page] || [];
@@ -146,14 +151,24 @@ export default function Reader({ book, onClose }) {
         {!textMode && mode === 'erase' ? <Txt size={13} color={theme.sub}>اضغط على أي تظليل لحذفه.</Txt> : null}
       </View>
       {textMode ? (
-        <ScrollView contentContainerStyle={{ padding: 16 }}>
-          <Txt weight="800" size={18} accessibilityRole="header" style={{ marginBottom: 8 }}>{label(page)}</Txt>
-          {pageTxt.trim().length > 20 ? (
-            <View>
-              {Array.isArray(book.ocr) && book.ocr.includes(page) ? <Txt size={14} color={theme.sub} accessibilityLanguage="ar" style={{ marginBottom: 8 }}>هذا النص استُخرج آلياً من صورة الصفحة، وقد يحتوي أخطاء.</Txt> : null}
-              <Txt selectable accessibilityLanguage="ar" size={19} style={{ lineHeight: Math.round(scale(19) * 1.75) }}>{pageTxt}</Txt>
-            </View>
-          ) : (
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 28 }}>
+          {/* رأس الصفحة: عنوان القسم ورقم الصفحة، كما في كتب المكتبات الرقمية */}
+          <Row style={{ justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: theme.border, paddingBottom: 8, marginBottom: 14 }}>
+            <Txt size={14} color={theme.sub} style={{ flex: 1 }} numberOfLines={1} accessibilityRole="header">{sectionTitle || book.title}</Txt>
+            <Txt size={14} color={theme.sub} weight="700" style={{ marginRight: 12 }}>{printed(page) >= 1 ? String(printed(page)) : ''}</Txt>
+          </Row>
+          <Row style={{ marginBottom: 6 }}>
+            <Chip label="خط أصغر" onPress={() => setFontStep(Math.max(-3, fontStep - 1))} />
+            <Chip label="خط أكبر" onPress={() => setFontStep(Math.min(6, fontStep + 1))} />
+          </Row>
+          {Array.isArray(book.ocr) && book.ocr.includes(page) ? <Txt size={14} color={theme.sub} accessibilityLanguage="ar" style={{ marginBottom: 10 }}>هذا النص استُخرج آلياً من صورة الصفحة، وقد يحتوي أخطاء.</Txt> : null}
+          {pageBlocks.length ? pageBlocks.map(([t, txt], k) => {
+            const base = 18 + fontStep * 2;
+            if (t === 'h') return <Txt key={k} accessibilityRole="header" accessibilityLanguage="ar" weight="800" size={base + 3} style={{ marginTop: 16, marginBottom: 6, lineHeight: Math.round(scale(base + 3) * 1.6) }}>{txt}</Txt>;
+            if (t === 'n') return <Txt key={k} accessibilityLanguage="ar" color={theme.sub} size={base - 3} style={{ marginTop: 8, marginBottom: 4 }}>{txt}</Txt>;
+            if (t === 'd') return <Txt key={k} accessibilityLanguage="ar" size={base - 1} style={{ marginBottom: 6, lineHeight: Math.round(scale(base - 1) * 1.7), paddingHorizontal: 10, borderRightWidth: 3, borderRightColor: theme.accent }}>{txt}</Txt>;
+            return <Txt key={k} selectable accessibilityLanguage="ar" size={base} style={{ marginBottom: t === 'l' ? 6 : 12, paddingRight: t === 'l' ? 12 : 0, textAlign: 'justify', lineHeight: Math.round(scale(base) * 1.8) }}>{txt}</Txt>;
+          }) : (
             <Card><Txt accessibilityLanguage="ar">لا يتوفر نص لهذه الصفحة، فهي صورة أو رسم. اضغط عرض الصورة لرؤيتها.</Txt></Card>
           )}
         </ScrollView>
